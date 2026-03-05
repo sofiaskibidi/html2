@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Scrapbook</title>
+    <style>
+        /* --- 1. THE ENVIRONMENT & CUSTOM CURSOR --- */
+        body {
+            margin: 0; min-height: 100vh; display: flex; justify-content: center; align-items: center;
+            background-color: #fff0f3; background-image: radial-gradient(#ffc2d1 3px, transparent 3px); 
+            background-size: 40px 40px; font-family: 'Courier New', Courier, monospace; 
+            overflow: hidden; transition: background-color 1.5s ease, background-image 1.5s ease;
+            cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="%23f1c0e8"><path d="M12,2C8,2 8,6 12,10C16,6 16,2 12,2M12,22C8,22 8,18 12,14C16,18 16,22 12,22M2,12C2,8 6,8 10,12C6,16 2,16 2,12M22,12C22,8 18,8 14,12C18,16 22,16 22,12Z"/></svg>') 14 14, auto;
+        }
+
+        body.midnight-mode { background-color: #1a1a2e; background-image: radial-gradient(#2a2a4a 3px, transparent 3px); }
+        body.midnight-mode .journal { box-shadow: 20px 20px 50px rgba(0, 0, 0, 0.8), inset 0 0 50px rgba(255,255,255,0.05); }
+        body.midnight-mode .cover { box-shadow: 15px 15px 40px rgba(0,0,0,0.6); }
+        body.midnight-mode h1, body.midnight-mode h2 { text-shadow: 0 0 10px rgba(251, 111, 146, 0.5); }
+
+        /* --- 2. GIANT BOOK STRUCTURE --- */
+        .book-wrapper {
+            position: relative; width: 85vw; height: 85vh; max-width: 1400px; max-height: 900px;
+            perspective: 2500px; transform: translateX(-21.25vw); 
+            transition: transform 1.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+        }
+        .book-wrapper.is-open { transform: translateX(0); }
+        .book-wrapper.spin-animation { animation: barrelRoll 1.5s ease-in-out; }
+        @keyframes barrelRoll { 0% { transform: translateX(0) rotate(0deg); } 100% { transform: translateX(0) rotate(360deg); } }
+
+        .journal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #fdfbf7; border-radius: 15px; box-shadow: 20px 20px 50px rgba(255, 179, 198, 0.4);
+            opacity: 0; pointer-events: none; transition: opacity 0.4s ease 0.6s, box-shadow 1.5s ease;
+        }
+        .journal.is-open { opacity: 1; pointer-events: auto; }
+        .journal::before { 
+            content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 60px; margin-left: -30px;
+            background: linear-gradient(to right, rgba(0,0,0,0.02), rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.02)); z-index: 10; pointer-events: none;
+        }
+
+        /* --- 3. THE SPREADS --- */
+        .spread { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
+        .spread.active { opacity: 1; pointer-events: auto; z-index: 5; }
+        .page { flex: 1; padding: 50px; position: relative; background: #fffcf8; display: flex; flex-direction: column; box-sizing: border-box; }
+        .page.left-page { border-radius: 15px 0 0 15px; box-shadow: inset -15px 0 20px rgba(0,0,0,0.03); }
+        .page.right-page { border-radius: 0 15px 15px 0; box-shadow: inset 15px 0 20px rgba(0,0,0,0.03); }
+
+        /* --- 4. THE COVER --- */
+        .cover {
+            position: absolute; top: 0; left: 50%; width: 50%; height: 100%; 
+            background: linear-gradient(135deg, #ffb3c6 0%, #ff8fab 100%); 
+            border-radius: 5px 15px 15px 5px; box-shadow: 15px 15px 40px rgba(0,0,0,0.2);
+            z-index: 100; transform-origin: left center; transition: transform 1.2s cubic-bezier(0.645, 0.045, 0.355, 1), opacity 0.5s ease 0.8s, box-shadow 1.5s ease;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: inherit;
+            border: 2px solid rgba(255,255,255,0.5);
+        }
+        .cover h1 { color: #fff; font-size: 3.5vw; text-align: center; font-family: 'Helvetica Neue', Arial, sans-serif; text-shadow: 2px 4px 10px rgba(255, 143, 171, 0.8); margin-bottom: 5px;}
+        .cover p { color: #ffe6eb; font-size: 1.5vw; animation: pulse 2s infinite; font-family: 'Helvetica Neue', Arial, sans-serif;}
+        .cover.open { transform: rotateY(-180deg); pointer-events: none; opacity: 0; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+
+        /* --- 5. TABS --- */
+        .tabs { position: absolute; top: -65px; right: 30px; display: flex; flex-direction: row; gap: 15px; z-index: 20; }
+        .tab {
+            background: #ff8fab; color: white; padding: 20px 35px 15px 35px; border-radius: 20px 20px 0 0; 
+            font-weight: bold; font-family: 'Helvetica Neue', Arial, sans-serif; box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s, background 0.3s, padding 0.3s; user-select: none; font-size: 1.4em; white-space: nowrap; cursor: inherit;
+        }
+        .tab:hover { transform: translateY(-8px); background: #fb6f92; }
+        .tab.active { background: #fffcf8; color: #fb6f92; transform: translateY(2px); padding-bottom: 30px;}
+
+        /* --- 6. SCRAPBOOK ELEMENTS --- */
+        h2 { color: #fb6f92; font-family: 'Helvetica Neue', Arial, sans-serif; margin-top: 0; border-bottom: 2px dashed #ffc2d1; padding-bottom: 10px; font-size: 2em;}
+        p { color: #7a5c62; font-size: 1.3em; line-height: 1.6; }
+
+        .polaroid { 
+            background: white; padding: 12px 12px 45px 12px; box-shadow: 2px 4px 15px rgba(0,0,0,0.15); 
+            display: inline-block; position: relative; margin: 10px; transition: box-shadow 0.3s;
+            cursor: grab; user-select: none; z-index: 10;
+        }
+        .polaroid:active { cursor: grabbing; z-index: 999; box-shadow: 10px 15px 30px rgba(0,0,0,0.3); }
+        .polaroid img { width: 100%; max-width: 200px; max-height: 200px; object-fit: cover; display: block; pointer-events: none; }
+        .tape { background-color: rgba(255, 255, 230, 0.8); box-shadow: 0 1px 3px rgba(0,0,0,0.2); position: absolute; width: 80px; height: 25px; top: -10px; left: 50%; transform: translateX(-50%) rotate(-3deg); z-index: 5; pointer-events: none; }
+        
+        .tilt-1 { transform: rotate(-4deg); } .tilt-2 { transform: rotate(3deg); } .tilt-3 { transform: rotate(-2deg); }
+        .flex-gallery { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; align-items: center;}
+
+        /* Secret Flippable Photo */
+        .flip-card { perspective: 1000px; background: transparent; box-shadow: none; padding: 0; cursor: pointer !important; }
+        .flip-inner { position: relative; width: 224px; height: 257px; text-align: center; transition: transform 0.8s; transform-style: preserve-3d; }
+        .flip-card.is-flipped .flip-inner { transform: rotateY(180deg); }
+        .flip-front, .flip-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; background: white; padding: 12px 12px 45px 12px; box-sizing: border-box; box-shadow: 2px 4px 15px rgba(0,0,0,0.15); }
+        .flip-back { transform: rotateY(180deg); display: flex; justify-content: center; align-items: center; background: #fffdee; flex-direction: column;}
+        .flip-back p { font-family: 'Brush Script MT', cursive; font-size: 1.8em; color: #d6336c; margin: 0; transform: rotate(-5deg); line-height: 1.2;}
+
+        .page-controls { margin-top: auto; display: flex; justify-content: space-between; padding-top: 20px; border-top: 2px dashed #ffc2d1;}
+        .turn-btn { background: #ff8fab; color: white; border: none; padding: 12px 25px; border-radius: 25px; font-weight: bold; font-size: 1.1em; transition: 0.3s; font-family: 'Helvetica Neue', Arial, sans-serif; cursor: inherit;}
+        .turn-btn:hover { background: #fb6f92; transform: scale(1.05); }
+
+        /* --- 7. SLIDESHOW --- */
+        .slideshow-container { width: 100%; position: relative; margin: auto; border: 10px solid white; box-shadow: 0 5px 15px rgba(0,0,0,0.1); border-radius: 5px; transform: rotate(1deg);}
+        .slide { display: none; }
+        .slide img { width: 100%; height: 400px; object-fit: cover; display: block; }
+        .prev, .next { position: absolute; top: 50%; width: auto; padding: 16px; margin-top: -22px; color: white; font-weight: bold; font-size: 20px; transition: 0.6s ease; border-radius: 0 3px 3px 0; user-select: none; background-color: rgba(251, 111, 146, 0.5); cursor: inherit;}
+        .next { right: 0; border-radius: 3px 0 0 3px; }
+        .prev:hover, .next:hover { background-color: rgba(251, 111, 146, 0.9); }
+        .fade { animation: fade 1.5s; }
+        @keyframes fade { from { opacity: 0.4 } to { opacity: 1 } }
+
+        /* --- 8. EASTER EGGS CSS --- */
+        
+        /* The Magic Toybox (Bottom Edge Buttons) */
+        .magic-toybox {
+            position: fixed; bottom: -10px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 15px; z-index: 10000; padding: 15px;
+            background: rgba(255, 255, 255, 0.4); border-radius: 30px 30px 0 0;
+            box-shadow: 0 -4px 15px rgba(0,0,0,0.05); backdrop-filter: blur(5px);
+            transition: bottom 0.3s ease;
+        }
+        .magic-toybox:hover { bottom: 0; }
+        .toy-btn {
+            background: white; border: 2px dashed #ffb3c6; width: 45px; height: 45px;
+            border-radius: 50%; display: flex; justify-content: center; align-items: center;
+            font-size: 22px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            transition: all 0.3s; animation: bobToy 3s infinite ease-in-out;
+        }
+        .toy-btn:hover { background: #ffe6eb; border-color: #fb6f92; transform: scale(1.15) translateY(-5px) !important; animation: none; }
+        .toy-btn:nth-child(1) { animation-delay: 0s; }
+        .toy-btn:nth-child(2) { animation-delay: 0.5s; }
+        .toy-btn:nth-child(3) { animation-delay: 1s; }
+        .toy-btn:nth-child(4) { animation-delay: 1.5s; }
+        @keyframes bobToy { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+
+        /* Flower Cursor Trail */
+        .flower-trail { position: fixed; font-size: 24px; pointer-events: none; z-index: 999999; animation: floatFlower 0.8s ease-out forwards; text-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        @keyframes floatFlower { 0% { transform: scale(0.5) rotate(0deg); opacity: 1; } 100% { transform: scale(1.2) rotate(45deg) translateY(20px); opacity: 0; } }
+        
+        /* Secret Midnight Sticker */
+        .secret-sticker { position: absolute; bottom: 20px; right: 20px; font-size: 20px; opacity: 0.1; transition: 0.3s; cursor: inherit; z-index: 50;}
+        .secret-sticker:hover { opacity: 0.8; transform: scale(1.2) rotate(20deg); }
+        .firefly { position: fixed; width: 4px; height: 4px; background: #ffffaaa0; border-radius: 50%; box-shadow: 0 0 8px #ffffaa, 0 0 15px #ffffaa; pointer-events: none; z-index: 9999; animation: floatFly 10s infinite ease-in-out alternate, blinkFly 2s infinite alternate; }
+        @keyframes floatFly { 0% { transform: translate(0, 0); } 100% { transform: translate(100px, -100px); } }
+        @keyframes blinkFly { 0% { opacity: 0.2; } 100% { opacity: 1; } }
+
+        /* Confetti */
+        .confetti { position: fixed; width: 8px; height: 8px; pointer-events: none; z-index: 99999; animation: popConfetti 1s ease-out forwards; border-radius: 2px;}
+        @keyframes popConfetti { 0% { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(0.5) rotate(360deg); opacity: 0; } }
+
+        /* Zero Gravity Magic */
+        .anti-gravity { animation: floatMagic 3s infinite ease-in-out !important; }
+        @keyframes floatMagic { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-40px) rotate(5deg); } }
+
+        /* Paw Prints */
+        .paw-print { position: fixed; font-size: 30px; pointer-events: none; z-index: 99999; opacity: 0; animation: pawWalk 2s forwards; }
+        @keyframes pawWalk { 0% { opacity: 0; transform: scale(0.5); } 20% { opacity: 1; transform: scale(1.2); } 80% { opacity: 1; } 100% { opacity: 0; } }
+
+        /* COFFEE MUG AND SPILL */
+        .coffee-container { position: fixed; bottom: 30px; left: 50px; z-index: 9999; pointer-events: none; opacity: 0; transition: opacity 0.5s; display: flex; align-items: flex-end;}
+        .coffee-container.active { opacity: 1; }
+        .coffee-cup { position: relative; width: 80px; height: 100px; transform-origin: bottom right; }
+        .cup-body { width: 80px; height: 100px; background: #fff; border-radius: 5px 5px 25px 25px; border: 4px solid #d1d1d1; position: absolute; z-index: 2; box-shadow: inset -10px 0 15px rgba(0,0,0,0.1); }
+        .cup-handle { width: 30px; height: 40px; border: 4px solid #d1d1d1; border-radius: 15px; position: absolute; right: -22px; top: 15px; z-index: 1; }
+        
+        .coffee-spill-new { 
+            width: 0px; height: 35px; margin-left: -10px; opacity: 0; margin-bottom: 5px; 
+            background: radial-gradient(ellipse at center, #4e342e 0%, #6e462a 50%, #bcaaa4 95%, transparent 100%);
+            border-radius: 50% 50% 40% 60%; box-shadow: 0 5px 15px rgba(78, 52, 46, 0.4); mix-blend-mode: multiply;
+        }
+        
+        .coffee-container.active .coffee-cup { animation: tipOver 0.6s forwards; }
+        .coffee-container.active .coffee-spill-new { animation: spillOut 4.4s forwards; animation-delay: 0.6s; }
+        
+        @keyframes tipOver { to { transform: rotate(90deg) translate(30px, 20px); } }
+        @keyframes spillOut {
+            0% { width: 0px; opacity: 0.9; }
+            10% { width: 280px; opacity: 0.9; transform: translateX(45px); }
+            85% { width: 280px; opacity: 0.9; transform: translateX(45px); }
+            100% { width: 280px; opacity: 0; transform: translateX(45px); }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="magic-toybox">
+        <div class="toy-btn" onclick="triggerCoffee()" title="Spill Coffee">☕</div>
+        <div class="toy-btn" onclick="triggerMagic()" title="Anti-Gravity">💫</div>
+        <div class="toy-btn" onclick="triggerPaws()" title="Kitten Paws">🐱</div>
+        <div class="toy-btn" onclick="triggerSpin()" title="Do a Barrel Roll!">🎡</div>
+    </div>
+
+    <div class="coffee-container" id="coffee-container">
+        <div class="coffee-cup"><div class="cup-body"></div><div class="cup-handle"></div></div>
+        <div class="coffee-spill-new"></div>
+    </div>
+
+    <div class="book-wrapper" id="book-wrapper">
+        
+        <div class="cover" id="book-cover" onclick="openBook()">
+            <div class="polaroid tilt-2 drag-item" style="margin-bottom: 40px;">
+                <div class="tape"></div>
+                <img src="wonderlust.png" alt="Cover">
+            </div>
+            <h1>My Portfolio</h1>
+            <p>Click to open 📖</p>
+        </div>
+
+        <div class="journal" id="the-journal">
+            
+            <div class="tabs">
+                <div class="tab active" id="tab-home" onclick="goToSpread('spread-home', 'tab-home')">Home</div>
+                <div class="tab" id="tab-photo" onclick="goToSpread('spread-photo-1', 'tab-photo')">Photography</div>
+                <div class="tab" id="tab-design" onclick="goToSpread('spread-design-1', 'tab-design')">Design Work</div>
+                <div class="tab" id="tab-contact" onclick="goToSpread('spread-contact', 'tab-contact')">Contact</div>
+            </div>
+
+            <div id="spread-home" class="spread active">
+                <div class="page left-page">
+                    <h1 style="color:#fb6f92; font-family:'Helvetica', sans-serif; font-size: 3em; margin-top: 0; cursor: pointer;" onclick="shootConfetti(event)" title="Click me!">Welcome!</h1>
+                    <p>Step into my visual diary. Grab the photos and drag them around, or use the tabs to explore.</p>
+                    <div class="polaroid tilt-1 drag-item" style="margin-top: auto; margin-left: 20px;">
+                        <div class="tape"></div>
+                        <img src="beach.png" alt="Me">
+                        <p style="text-align:center; font-family:'Brush Script MT', cursive; margin:10px 0 0 0;">Summer, 2025</p>
+                    </div>
+                </div>
+                <div class="page right-page">
+                    <h2>Featured Highlights</h2>
+                    <p>My latest favorite pieces.</p>
+                    <div class="slideshow-container" style="margin-top: 30px;">
+                        <div class="slide fade"><img src="flower.png" alt="Highlight 1"></div>
+                        <div class="slide fade"><img src="wara.png"></div>
+                        <div class="slide fade"><img src="cove.png" alt="Highlight 3"></div>
+                        <a class="prev" onclick="plusSlides(-1)">&#10094;</a>
+                        <a class="next" onclick="plusSlides(1)">&#10095;</a>
+                        <div class="tape" style="top: -15px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="spread-photo-1" class="spread">
+                <div class="page left-page">
+                    <h2>Photography 🌸</h2>
+                    <div class="flex-gallery">
+                        <div class="polaroid tilt-1 drag-item"><div class="tape"></div><img src="megan.png" alt="Pic"></div>
+                        <div class="polaroid flip-card tilt-3 drag-item" onclick="this.classList.toggle('is-flipped')">
+                            <div class="flip-inner">
+                                <div class="flip-front"><div class="tape"></div><img src="emma.png" alt="Secret Front"></div>
+                                <div class="flip-back"><div class="tape" style="top: auto; bottom: -10px;"></div><p>You found<br>my secret<br>note! ✨</p></div>
+                            </div>
+                        </div>
+                        <div class="polaroid tilt-2 drag-item"><div class="tape"></div><img src="lusiana.png" alt="Pic"></div>
+                    </div>
+                </div>
+                <div class="page right-page">
+                    <div class="flex-gallery" style="margin-top: 40px;">
+                        <div class="polaroid tilt-1 drag-item"><div class="tape"></div><img src="bench.png" alt="Pic"></div>
+                        <div class="polaroid tilt-3 drag-item"><div class="tape"></div><img src="https://picsum.photos/seed/p5/200/200" alt="Pic"></div>
+                        <div class="polaroid tilt-2 drag-item"><div class="tape"></div><img src="https://picsum.photos/seed/p6/200/200" alt="Pic"></div>
+                    </div>
+                    <div class="page-controls" style="justify-content: flex-end;">
+                        <button class="turn-btn" onclick="goToSpread('spread-photo-2', 'tab-photo')">Next Page ➔</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="spread-photo-2" class="spread">
+                <div class="page left-page">
+                    <div class="flex-gallery" style="margin-top: 40px;">
+                        <div class="polaroid tilt-2 drag-item"><div class="tape"></div><img src="https://picsum.photos/seed/p7/220/220" alt="Pic"></div>
+                        <div class="polaroid tilt-1 drag-item"><div class="tape"></div><img src="https://picsum.photos/seed/p8/220/220" alt="Pic"></div>
+                    </div>
+                    <div class="page-controls" style="justify-content: flex-start;">
+                        <button class="turn-btn" onclick="goToSpread('spread-photo-1', 'tab-photo')">⬅ Prev Page</button>
+                    </div>
+                </div>
+                <div class="page right-page">
+                    <div class="flex-gallery" style="margin-top: 40px;">
+                        <div class="polaroid tilt-3 drag-item"><div class="tape"></div><img src="https://picsum.photos/seed/p9/220/220" alt="Pic"></div>
+                        <div class="polaroid tilt-2 drag-item"><div class="tape"></div><img src="https://picsum.photos/seed/p10/220/220" alt="Pic"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="spread-design-1" class="spread">
+                <div class="page left-page">
+                    <h2>Design Gallery</h2>
+                    <div class="flex-gallery">
+                        <div class="polaroid tilt-2 drag-item"><div class="tape"></div><img src="drawingtree.png" alt="Design"></div>
+                        <div class="polaroid tilt-3 drag-item"><div class="tape"></div><img src="lightning.png" alt="Design"></div>
+                        <div class="polaroid tilt-1 drag-item"><div class="tape"></div><img src="https://picsum.photos/seed/d3/200/200" alt="Design"></div>
+                    </div>
+                </div>
+                <div class="page right-page">
+                    <div class="flex-gallery" style="margin-top: 40px;">
+                        <div class="polaroid tilt-3 drag-item"><div class="tape"></div><img src="https://picsum.photos/seed/d4/200/200" alt="Design"></div>
+                        <div class="polaroid tilt-1 drag-item"><div class="tape"></div><img src="balloon.png" alt="Design"></div>
+                        <div class="polaroid tilt-2 drag-item"><div class="tape"></div><img src="https://picsum.photos/seed/d6/200/200" alt="Design"></div>
+                    </div>
+                    <div class="page-controls" style="justify-content: flex-end;">
+                        <button class="turn-btn" onclick="goToSpread('spread-design-2', 'tab-design')">Next Page ➔</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="spread-design-2" class="spread">
+                <div class="page left-page">
+                    <div class="flex-gallery" style="margin-top: 40px;">
+                        <div class="polaroid tilt-2 drag-item"><div class="tape"></div><img src="https://picsum.photos/seed/d7/220/220" alt="Design"></div>
+                        <div class="polaroid tilt-1 drag-item"><div class="tape"></div><img src="https://picsum.photos/seed/d8/220/220" alt="Design"></div>
+                    </div>
+                    <div class="page-controls" style="justify-content: flex-start;">
+                        <button class="turn-btn" onclick="goToSpread('spread-design-1', 'tab-design')">⬅ Prev Page</button>
+                    </div>
+                </div>
+                <div class="page right-page">
+                    <div class="flex-gallery" style="margin-top: 40px;">
+                        <div class="polaroid tilt-3 drag-item"><div class="tape"></div><img src="https://picsum.photos/seed/d9/220/220" alt="Design"></div>
+                        <div class="polaroid tilt-2 drag-item"><div class="tape"></div><img src="https://picsum.photos/seed/d10/220/220" alt="Design"></div>
+                    </div>
+                    <div class="secret-sticker" onclick="toggleMidnightMode()" title="Psst... click me!">⭐</div>
+                </div>
+            </div>
+
+            <div id="spread-contact" class="spread">
+                <div class="page left-page">
+                    <h2>Let's Connect</h2>
+                    <p>I would absolutely love to hear from you. Leave a note in my journal!</p>
+                    <div class="polaroid tilt-2 drag-item" style="margin-top: 30px;">
+                        <div class="tape"></div>
+                        <img src="IMG_1875.PNG" alt="That's Me!">
+                        <p style="text-align:center; font-family:'Brush Script MT', cursive; margin:10px 0 0 0;">Sofia Hoang! 👋</p>
+                    </div>
+                </div>
+                <div class="page right-page">
+                    <div style="background: rgba(255,255,255,0.7); padding: 40px; border-radius: 15px; margin-top: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.05);">
+                        <input type="text" placeholder="your name" style="width: 90%; padding: 15px; margin-bottom: 20px; border: 2px dashed #fb6f92; background: transparent; font-family: inherit; font-size: 1.2em; border-radius: 10px;"><br>
+                        <textarea placeholder="Write your message here..." style="width: 90%; padding: 15px; height: 150px; border: 2px dashed #fb6f92; background: transparent; font-family: inherit; font-size: 1.2em; border-radius: 10px;"></textarea><br>
+                        <button style="background: #fb6f92; border: none; padding: 15px 30px; font-weight: bold; color: white; margin-top: 20px; border-radius: 25px; font-size: 1.2em; transition: 0.3s; cursor: inherit;">Leave Note 🌸</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- AUDIO SYNTHESIS FOR PAPER SWISH ---
+        let audioCtx = null;
+        function playPaperTurn() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const bufferSize = audioCtx.sampleRate * 0.2; 
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) { data[i] = Math.random() * 2 - 1; }
+            const noise = audioCtx.createBufferSource(); noise.buffer = buffer;
+            const filter = audioCtx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.setValueAtTime(1000, audioCtx.currentTime); filter.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.2);
+            const gain = audioCtx.createGain(); gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+            noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+            noise.start();
+        }
+
+        // --- BOOK NAVIGATION ---
+        let isBookOpen = false;
+        function openBook() {
+            if (isBookOpen) return;
+            playPaperTurn();
+            document.getElementById('book-wrapper').classList.add('is-open');
+            document.getElementById('book-cover').classList.add('open');
+            document.getElementById('the-journal').classList.add('is-open');
+            isBookOpen = true;
+            setTimeout(() => { showSlides(1); }, 1000); 
+        }
+
+        function goToSpread(spreadId, tabId) {
+            playPaperTurn();
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            document.querySelectorAll('.spread').forEach(s => s.classList.remove('active'));
+            setTimeout(() => { document.getElementById(spreadId).classList.add('active'); }, 100);
+        }
+
+        // --- SLIDESHOW ---
+        let slideIndex = 1;
+        function plusSlides(n) { showSlides(slideIndex += n); }
+        function showSlides(n) {
+            let i; let slides = document.getElementsByClassName("slide");
+            if (slides.length === 0) return;
+            if (n > slides.length) {slideIndex = 1}    
+            if (n < 1) {slideIndex = slides.length}
+            for (i = 0; i < slides.length; i++) { slides[i].style.display = "none"; }
+            slides[slideIndex-1].style.display = "block";  
+        }
+
+        // --- CUSTOM FLOWER CURSOR TRAIL ---
+        const flowers = ['🌸', '🌼', '🌷', '🌺', '💮'];
+        document.addEventListener('mousemove', function(e) {
+            if (Math.random() > 0.15) return; 
+            const trail = document.createElement('div');
+            trail.classList.add('flower-trail');
+            trail.textContent = flowers[Math.floor(Math.random() * flowers.length)];
+            trail.style.left = (e.clientX - 12) + 'px';
+            trail.style.top = (e.clientY - 12) + 'px';
+            document.body.appendChild(trail);
+            setTimeout(() => { trail.remove(); }, 800);
+        });
+
+        // --- DRAGGABLE POLAROIDS ---
+        const draggableItems = document.querySelectorAll('.drag-item');
+        draggableItems.forEach(item => {
+            let isDragging = false, startX, startY;
+            item.addEventListener('mousedown', (e) => {
+                if (e.target.closest('.flip-inner')) return; 
+                isDragging = true; startX = e.clientX; startY = e.clientY;
+                const style = window.getComputedStyle(item);
+                const matrix = style.transform === 'none' ? '' : style.transform;
+                item.setAttribute('data-initial-transform', matrix);
+                item.style.transition = 'none'; 
+            });
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const dx = e.clientX - startX; const dy = e.clientY - startY;
+                const baseTransform = item.getAttribute('data-initial-transform') || '';
+                item.style.transform = `${baseTransform} translate(${dx}px, ${dy}px)`;
+            });
+            document.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    item.style.transition = 'box-shadow 0.3s, transform 0.3s'; 
+                    item.style.transform = item.style.transform; 
+                }
+            });
+        });
+
+        // --- EASTER EGG: MIDNIGHT MODE ---
+        let fireflies = [];
+        function toggleMidnightMode() {
+            playPaperTurn();
+            document.body.classList.toggle('midnight-mode');
+            if (document.body.classList.contains('midnight-mode')) {
+                for(let i = 0; i < 30; i++) {
+                    let fly = document.createElement('div');
+                    fly.classList.add('firefly');
+                    fly.style.left = Math.random() * 100 + 'vw';
+                    fly.style.top = Math.random() * 100 + 'vh';
+                    fly.style.animationDelay = (Math.random() * 5) + 's';
+                    document.body.appendChild(fly);
+                    fireflies.push(fly);
+                }
+            } else {
+                fireflies.forEach(fly => fly.remove()); fireflies = [];
+            }
+        }
+
+        // --- EASTER EGG: CONFETTI ---
+        function shootConfetti(e) {
+            for(let i=0; i<40; i++) {
+                const conf = document.createElement('div');
+                conf.classList.add('confetti');
+                conf.style.left = e.clientX + 'px';
+                conf.style.top = e.clientY + 'px';
+                conf.style.backgroundColor = ['#fb6f92', '#ff8fab', '#ffc2d1', '#ffffff', '#ffd166'][Math.floor(Math.random()*5)];
+                const angle = Math.random() * Math.PI * 2;
+                const velocity = 30 + Math.random() * 70;
+                conf.style.setProperty('--dx', Math.cos(angle) * velocity + 'px');
+                conf.style.setProperty('--dy', Math.sin(angle) * velocity + 'px');
+                document.body.appendChild(conf);
+                setTimeout(()=>conf.remove(), 1000);
+            }
+        }
+
+        // --- BUTTON TRIGGER FUNCTIONS ---
+        
+        function triggerCoffee() {
+            const cup = document.getElementById('coffee-container');
+            if(cup.classList.contains('active')) return; 
+            cup.classList.add('active');
+            setTimeout(() => { cup.classList.remove('active'); }, 5000);
+        }
+
+        function triggerMagic() {
+            const photos = document.querySelectorAll('.polaroid');
+            photos.forEach(p => p.classList.add('anti-gravity'));
+            setTimeout(() => { photos.forEach(p => p.classList.remove('anti-gravity')); }, 5000);
+        }
+
+        function triggerPaws() {
+            let leftPos = -50;
+            let step = 0;
+            const walkInterval = setInterval(() => {
+                if(leftPos > window.innerWidth) { clearInterval(walkInterval); return; }
+                const paw = document.createElement('div');
+                paw.classList.add('paw-print');
+                paw.textContent = '🐾';
+                paw.style.left = leftPos + 'px';
+                paw.style.top = (window.innerHeight / 2) + (step % 2 === 0 ? -20 : 20) + 'px';
+                document.body.appendChild(paw);
+                setTimeout(() => paw.remove(), 2000);
+                leftPos += 80;
+                step++;
+            }, 300);
+        }
+
+        function triggerSpin() {
+            const book = document.getElementById('book-wrapper');
+            book.classList.remove('spin-animation');
+            void book.offsetWidth; 
+            book.classList.add('spin-animation');
+        }
+
+    </script>
+</body>
+</html>
