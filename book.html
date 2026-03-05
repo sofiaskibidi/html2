@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spring Portfolio - Interactive Scrapbook</title>
+    <style>
+        /* --- 1. THE PRETTY PINK BACKGROUND --- */
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #fff0f3; /* Soft pink */
+            background-image: radial-gradient(#ffc2d1 3px, transparent 3px); /* Cute polka dots */
+            background-size: 40px 40px;
+            font-family: 'Courier New', Courier, monospace; 
+            overflow: hidden; 
+            transition: background 1s ease;
+        }
+
+        /* --- 2. GIANT BOOK STRUCTURE (85% of screen) --- */
+        .book-wrapper {
+            position: relative;
+            width: 85vw;
+            height: 85vh;
+            max-width: 1400px;
+            max-height: 900px;
+            perspective: 2000px; 
+        }
+
+        .journal {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            background: #fdfbf7; 
+            border-radius: 15px;
+            box-shadow: 20px 20px 50px rgba(255, 179, 198, 0.4), inset 0 0 50px rgba(255, 194, 209, 0.3);
+            position: absolute;
+            top: 0;
+            left: 0;
+            opacity: 0; 
+            pointer-events: none;
+            transition: opacity 0.5s ease 0.8s; 
+        }
+
+        .journal.is-open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* The book spine */
+        .journal::before { 
+            content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 50px; margin-left: -25px;
+            background: linear-gradient(to right, rgba(0,0,0,0.05), rgba(0,0,0,0.15) 50%, rgba(0,0,0,0.05)); z-index: 10;
+        }
+
+        .page {
+            flex: 1; padding: 40px; position: relative; background: #fffcf8; 
+            border-radius: 15px 0 0 15px; box-shadow: inset -15px 0 20px rgba(0,0,0,0.03); 
+            overflow: hidden; /* SCROLLING DISABLED - Using pagination now! */
+            display: flex; flex-direction: column;
+        }
+        
+        .page.right { border-radius: 0 15px 15px 0; box-shadow: inset 15px 0 20px rgba(0,0,0,0.03); }
+
+        /* --- 3. THE PRETTY BLUSH COVER --- */
+        .cover {
+            position: absolute; top: 0; left: 0; width: 50%; height: 100%; 
+            background: linear-gradient(135deg, #ffb3c6 0%, #ff8fab 100%); 
+            border-radius: 15px 5px 5px 15px; box-shadow: 15px 15px 40px rgba(0,0,0,0.2);
+            z-index: 100; transform-origin: right center; transition: transform 1.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+            display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer;
+            border: 2px solid rgba(255,255,255,0.5);
+        }
+
+        .cover h1 { color: #fff; font-size: 4vw; text-align: center; font-family: 'Helvetica Neue', Arial, sans-serif; text-shadow: 2px 4px 10px rgba(255, 143, 171, 0.8); margin-bottom: 5px;}
+        .cover p { color: #ffe6eb; font-size: 1.5vw; animation: pulse 2s infinite; font-family: 'Helvetica Neue', Arial, sans-serif;}
+        .cover.open { transform: rotateY(-180deg); pointer-events: none; opacity: 0; transition: transform 1.2s ease, opacity 0.3s ease 0.9s;}
+
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+
+        /* --- 4. TOP TABS (NO CUT-OFF) --- */
+        .tabs { 
+            position: absolute; top: -45px; right: 40px; display: flex; flex-direction: row; gap: 10px; z-index: 20; 
+        }
+        .tab {
+            background: #ff8fab; color: white; padding: 12px 25px; border-radius: 15px 15px 0 0; cursor: pointer;
+            font-weight: bold; font-family: 'Helvetica Neue', Arial, sans-serif; box-shadow: 0 -3px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s, background 0.3s, padding 0.3s; user-select: none; font-size: 1.2em; white-space: nowrap;
+        }
+        .tab:hover { transform: translateY(-5px); background: #fb6f92; }
+        .tab.active { background: #ffe5ec; color: #fb6f92; transform: translateY(2px); padding-bottom: 20px;}
+
+        /* --- 5. PAGE CONTENT & TURN ANIMATIONS --- */
+        .page-content { display: none; opacity: 0; transform: translateX(30px); transition: all 0.5s ease; height: 100%; flex-direction: column; }
+        .page-content.active { display: flex; opacity: 1; transform: translateX(0); }
+        
+        /* Sub-pages for turning pages instead of scrolling */
+        .sub-page { display: none; flex-direction: column; height: 100%; animation: fadePage 0.5s ease forwards; }
+        .sub-page.active { display: flex; }
+        @keyframes fadePage { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+
+        .pagination-controls { margin-top: auto; display: flex; justify-content: flex-end; gap: 15px; padding-top: 20px; border-top: 2px dashed #ffc2d1;}
+        .turn-btn { background: #ff8fab; color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.3s; font-family: 'Helvetica Neue', Arial, sans-serif;}
+        .turn-btn:hover { background: #fb6f92; transform: scale(1.05); }
+
+        /* --- 6. SCRAPBOOK ELEMENTS --- */
+        h2 { color: #fb6f92; font-family: 'Helvetica Neue', Arial, sans-serif; margin-top: 0; border-bottom: 2px dashed #ffc2d1; padding-bottom: 10px;}
+        p { color: #7a5c62; font-size: 1.2em; line-height: 1.6; }
+
+        .polaroid { background: white; padding: 12px 12px 45px 12px; box-shadow: 2px 4px 15px rgba(0,0,0,0.15); display: inline-block; position: relative; margin: 10px; transition: transform 0.3s;}
+        .polaroid:hover { transform: scale(1.08); z-index: 10; box-shadow: 5px 10px 25px rgba(0,0,0,0.2);}
+        .polaroid img { width: 100%; max-width: 200px; max-height: 200px; object-fit: cover; display: block; }
+        
+        .tape { background-color: rgba(255, 255, 230, 0.8); box-shadow: 0 1px 3px rgba(0,0,0,0.2); position: absolute; width: 80px; height: 25px; top: -10px; left: 50%; transform: translateX(-50%) rotate(-3deg); z-index: 5; }
+        .tilt-1 { transform: rotate(-4deg); } .tilt-2 { transform: rotate(3deg); } .tilt-3 { transform: rotate(-2deg); }
+        .flex-gallery { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; align-items: center;}
+
+        /* --- 7. SLIDESHOW STYLES --- */
+        .slideshow-container { max-width: 100%; position: relative; margin: auto; border: 8px solid white; box-shadow: 0 5px 15px rgba(0,0,0,0.1); border-radius: 5px; transform: rotate(-1deg);}
+        .slide { display: none; }
+        .slide img { width: 100%; height: 350px; object-fit: cover; display: block; }
+        .prev, .next { cursor: pointer; position: absolute; top: 50%; width: auto; padding: 16px; margin-top: -22px; color: white; font-weight: bold; font-size: 18px; transition: 0.6s ease; border-radius: 0 3px 3px 0; user-select: none; background-color: rgba(251, 111, 146, 0.5); }
+        .next { right: 0; border-radius: 3px 0 0 3px; }
+        .prev:hover, .next:hover { background-color: rgba(251, 111, 146, 0.9); }
+        .fade { animation: fade 1.5s; }
+        @keyframes fade { from { opacity: 0.4 } to { opacity: 1 } }
+
+        /* --- 8. EASTER EGGS --- */
+        .sparkle { position: fixed; border-radius: 50%; pointer-events: none; animation: fairyDust 1s forwards cubic-bezier(0.25, 1, 0.5, 1); z-index: 99999; }
+        @keyframes fairyDust { 0% { transform: scale(1) translateY(0); opacity: 0.8; } 100% { transform: scale(0.1) translateY(-40px) rotate(90deg); opacity: 0; } }
+        .petal { position: fixed; top: -10%; background: linear-gradient(135deg, #ffb7c5 0%, #ff8da1 100%); border-radius: 15px 0px 15px 0px; z-index: 9999; pointer-events: none; animation: fall linear forwards, sway 2s ease-in-out infinite alternate; }
+        @keyframes fall { 0% { top: -10%; opacity: 1; } 100% { top: 110%; opacity: 0; } }
+        @keyframes sway { 0% { transform: translateX(0px) rotate(0deg); } 100% { transform: translateX(40px) rotate(45deg); } }
+
+    </style>
+</head>
+<body>
+
+    <div class="book-wrapper">
+        
+        <div class="cover" id="book-cover" onclick="openBook()">
+            <div class="polaroid tilt-2" style="margin-bottom: 40px;">
+                <div class="tape"></div>
+                <img src="https://picsum.photos/seed/coverphoto/300/300" alt="Cover">
+            </div>
+            <h1>My Portfolio</h1>
+            <p>Click to open 📖</p>
+        </div>
+
+        <div class="journal" id="the-journal">
+            
+            <div class="page">
+                <h1 style="color:#fb6f92; font-family:'Helvetica', sans-serif; font-size: 2.5em; margin-top: 0;">Welcome!</h1>
+                <p>Hello! Step into my visual diary. These pages hold a collection of my favorite moments, designs, and digital experiments. Use the tabs above and flip the pages to explore.</p>
+                
+                <div class="polaroid tilt-1" style="margin-top: auto; margin-left: 30px; margin-bottom: 20px;">
+                    <div class="tape" style="transform: translateX(-50%) rotate(4deg);"></div>
+                    <img src="https://picsum.photos/seed/profileme/300/350" alt="Me">
+                    <p style="text-align:center; font-family:'Brush Script MT', cursive; margin:10px 0 0 0;">Spring, 2024</p>
+                </div>
+            </div>
+
+            <div class="page right">
+                
+                <div class="tabs">
+                    <div class="tab active" onclick="turnTab('home', this)">Home</div>
+                    <div class="tab" onclick="turnTab('photo', this)">Photography</div>
+                    <div class="tab" onclick="turnTab('design', this)">Design Work</div>
+                    <div class="tab" onclick="turnTab('contact', this)">Contact Me</div>
+                </div>
+
+                <div id="home" class="page-content active">
+                    <h2>Featured Highlights</h2>
+                    <p>A quick glance at my latest favorite pieces.</p>
+                    
+                    <div class="slideshow-container">
+                        <div class="slide fade"><img src="https://picsum.photos/seed/slide1/600/350" alt="Highlight 1"></div>
+                        <div class="slide fade"><img src="https://picsum.photos/seed/slide2/600/350" alt="Highlight 2"></div>
+                        <div class="slide fade"><img src="https://picsum.photos/seed/slide3/600/350" alt="Highlight 3"></div>
+                        <a class="prev" onclick="plusSlides(-1)">&#10094;</a>
+                        <a class="next" onclick="plusSlides(1)">&#10095;</a>
+                        <div class="tape" style="top: -15px;"></div>
+                    </div>
+                </div>
+
+                <div id="photo" class="page-content">
+                    <h2 id="photo-title" style="cursor:pointer;" title="Click me!">Photography 🌸</h2>
+                    
+                    <div class="sub-page active" id="photo-p1">
+                        <div class="flex-gallery">
+                            <div class="polaroid tilt-1"><div class="tape"></div><img src="https://picsum.photos/seed/p1/200/200" alt="Pic"></div>
+                            <div class="polaroid tilt-3"><div class="tape"></div><img src="https://picsum.photos/seed/p2/200/200" alt="Pic"></div>
+                            <div class="polaroid tilt-2"><div class="tape"></div><img src="https://picsum.photos/seed/p3/200/200" alt="Pic"></div>
+                            <div class="polaroid tilt-1"><div class="tape"></div><img src="https://picsum.photos/seed/p4/200/200" alt="Pic"></div>
+                        </div>
+                        <div class="pagination-controls">
+                            <button class="turn-btn" onclick="flipSubPage('photo-p2')">Next Page ➔</button>
+                        </div>
+                    </div>
+
+                    <div class="sub-page" id="photo-p2">
+                        <div class="flex-gallery">
+                            <div class="polaroid tilt-3"><div class="tape"></div><img src="https://picsum.photos/seed/p5/200/200" alt="Pic"></div>
+                            <div class="polaroid tilt-2"><div class="tape"></div><img src="https://picsum.photos/seed/p6/200/200" alt="Pic"></div>
+                            <div class="polaroid tilt-1"><div class="tape"></div><img src="https://picsum.photos/seed/p7/200/200" alt="Pic"></div>
+                            <div class="polaroid tilt-3"><div class="tape"></div><img src="https://picsum.photos/seed/p8/200/200" alt="Pic"></div>
+                        </div>
+                        <div class="pagination-controls">
+                            <button class="turn-btn" onclick="flipSubPage('photo-p1')">⬅ Prev</button>
+                            <button class="turn-btn" onclick="flipSubPage('photo-p3')">Next Page ➔</button>
+                        </div>
+                    </div>
+
+                    <div class="sub-page" id="photo-p3">
+                        <div class="flex-gallery">
+                            <div class="polaroid tilt-1"><div class="tape"></div><img src="https://picsum.photos/seed/p9/200/200" alt="Pic"></div>
+                            <div class="polaroid tilt-2"><div class="tape"></div><img src="https://picsum.photos/seed/p10/200/200" alt="Pic"></div>
+                        </div>
+                        <div class="pagination-controls">
+                            <button class="turn-btn" onclick="flipSubPage('photo-p2')">⬅ Prev</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="design" class="page-content">
+                    <h2>Design Concepts</h2>
+                    
+                    <div class="sub-page active" id="design-p1">
+                        <div class="flex-gallery">
+                            <div class="polaroid tilt-2"><div class="tape"></div><img src="https://picsum.photos/seed/d1/200/200" alt="Design"></div>
+                            <div class="polaroid tilt-1"><div class="tape"></div><img src="https://picsum.photos/seed/d2/200/200" alt="Design"></div>
+                            <div class="polaroid tilt-3"><div class="tape"></div><img src="https://picsum.photos/seed/d3/200/200" alt="Design"></div>
+                            <div class="polaroid tilt-1"><div class="tape"></div><img src="https://picsum.photos/seed/d4/200/200" alt="Design"></div>
+                        </div>
+                        <div class="pagination-controls">
+                            <button class="turn-btn" onclick="flipSubPage('design-p2')">Next Page ➔</button>
+                        </div>
+                    </div>
+
+                    <div class="sub-page" id="design-p2">
+                        <div class="flex-gallery">
+                            <div class="polaroid tilt-2"><div class="tape"></div><img src="https://picsum.photos/seed/d5/200/200" alt="Design"></div>
+                            <div class="polaroid tilt-3"><div class="tape"></div><img src="https://picsum.photos/seed/d6/200/200" alt="Design"></div>
+                        </div>
+                        <div class="pagination-controls">
+                            <button class="turn-btn" onclick="flipSubPage('design-p1')">⬅ Prev</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="contact" class="page-content">
+                    <h2>Let's Connect</h2>
+                    <p>Leave a note in my journal! I'd love to hear about new projects or collaborations.</p>
+                    <div style="background: rgba(255,255,255,0.7); padding: 30px; border-radius: 15px; margin-top: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.05);">
+                        <input type="text" placeholder="Your Name" style="width: 95%; padding: 15px; margin-bottom: 15px; border: 2px dashed #fb6f92; background: transparent; font-family: inherit; font-size: 1.1em; border-radius: 10px;"><br>
+                        <textarea placeholder="Write your message here..." style="width: 95%; padding: 15px; height: 120px; border: 2px dashed #fb6f92; background: transparent; font-family: inherit; font-size: 1.1em; border-radius: 10px;"></textarea><br>
+                        <button style="background: #fb6f92; border: none; padding: 15px 30px; font-weight: bold; color: white; cursor: pointer; margin-top: 10px; border-radius: 20px; font-size: 1.1em; transition: 0.3s;">Leave Note 🌸</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let audioCtx = null;
+        let isBookOpen = false;
+
+        function playSparkleSound() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode); gainNode.connect(audioCtx.destination);
+            oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(1200 + Math.random() * 800, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime); 
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+            oscillator.start(); oscillator.stop(audioCtx.currentTime + 0.4);
+        }
+
+        // --- 1. OPEN THE BOOK ---
+        function openBook() {
+            if (isBookOpen) return;
+            document.getElementById('book-cover').classList.add('open');
+            document.getElementById('the-journal').classList.add('is-open');
+            playSparkleSound();
+            isBookOpen = true;
+            setTimeout(() => { showSlides(1); }, 1000); // Start slideshow after book opens
+        }
+
+        // --- 2. SWITCH TABS ---
+        function turnTab(pageId, tabElement) {
+            playSparkleSound();
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            tabElement.classList.add('active');
+
+            document.querySelectorAll('.page-content').forEach(p => {
+                p.style.opacity = '0'; p.style.transform = 'translateX(30px)';
+                setTimeout(() => { p.classList.remove('active'); }, 300); 
+            });
+
+            setTimeout(() => {
+                const activePage = document.getElementById(pageId);
+                activePage.classList.add('active');
+                setTimeout(() => { activePage.style.opacity = '1'; activePage.style.transform = 'translateX(0)'; }, 50);
+            }, 300);
+        }
+
+        // --- 3. FLIP SUB-PAGES (PAGINATION) ---
+        function flipSubPage(targetId) {
+            playSparkleSound();
+            // Hide all sub-pages
+            document.querySelectorAll('.sub-page').forEach(page => {
+                page.classList.remove('active');
+            });
+            // Show the target sub-page
+            document.getElementById(targetId).classList.add('active');
+        }
+
+        // --- 4. SLIDESHOW LOGIC ---
+        let slideIndex = 1;
+        function plusSlides(n) { showSlides(slideIndex += n); }
+        function showSlides(n) {
+            let i;
+            let slides = document.getElementsByClassName("slide");
+            if (slides.length === 0) return;
+            if (n > slides.length) {slideIndex = 1}    
+            if (n < 1) {slideIndex = slides.length}
+            for (i = 0; i < slides.length; i++) { slides[i].style.display = "none"; }
+            slides[slideIndex-1].style.display = "block";  
+        }
+
+        // --- 5. EASTER EGGS ---
+        function createPetal() {
+            const petal = document.createElement('div');
+            petal.classList.add('petal');
+            petal.style.left = Math.random() * 100 + 'vw';
+            petal.style.width = Math.random() * 12 + 10 + 'px';
+            petal.style.height = Math.random() * 12 + 15 + 'px';
+            petal.style.animationDuration = (Math.random() * 3 + 4) + 's, ' + (Math.random() * 1 + 1.5) + 's'; 
+            petal.style.opacity = Math.random() * 0.4 + 0.6; 
+            petal.style.transform = `rotate(${Math.random() * 360}deg)`;
+            document.body.appendChild(petal);
+            setTimeout(() => { petal.remove(); }, 7000);
+        }
+        function triggerBloom() { playSparkleSound(); let i = 0; const storm = setInterval(() => { createPetal(); i++; if (i > 100) clearInterval(storm); }, 20); }
+        document.getElementById('photo-title').addEventListener('click', triggerBloom);
+
+        let keyHistory = '';
+        window.addEventListener('keydown', (e) => {
+            keyHistory += e.key.toLowerCase();
+            if (keyHistory.includes('bloom')) { triggerBloom(); keyHistory = ''; }
+            if (keyHistory.length > 10) keyHistory = keyHistory.slice(-10);
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (Math.random() > 0.4) return; 
+            const sparkle = document.createElement('div'); sparkle.classList.add('sparkle');
+            const colors = ['#fb6f92', '#ffc2d1', '#ffffff'];
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+            const size = Math.random() * 8 + 4; 
+            sparkle.style.width = size + 'px'; sparkle.style.height = size + 'px';
+            sparkle.style.backgroundColor = randomColor; sparkle.style.boxShadow = `0 0 10px ${randomColor}`;
+            sparkle.style.left = (e.clientX - size/2) + 'px'; sparkle.style.top = (e.clientY - size/2) + 'px';
+            document.body.appendChild(sparkle);
+            setTimeout(() => { sparkle.remove(); }, 1000);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Messy Desk Test</title>
+    <style>
+        /* --- THE DESK BACKGROUND --- */
+        body {
+            margin: 0;
+            overflow: hidden; /* Stops scrollbars from appearing */
+            background: #e8e6e1; /* A nice, neutral desk color */
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            /* Creates a subtle paper texture */
+            background-image: radial-gradient(#d5d3ce 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        /* --- SUBTLE MENU SO YOU DON'T GET LOST --- */
+        .desk-menu {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 99999;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px 25px;
+            border-radius: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            backdrop-filter: blur(5px);
+        }
+        .desk-menu h2 { margin: 0 0 5px 0; color: #d1496b; font-size: 1.2em; }
+        .desk-menu p { margin: 0; color: #7a5c62; font-size: 0.9em; }
+
+        /* --- THE POLAROID PHOTOS --- */
+        #desk-surface {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .polaroid {
+            position: absolute;
+            background: white;
+            padding: 10px 10px 45px 10px; /* Gives it that Polaroid bottom edge */
+            box-shadow: 2px 8px 20px rgba(0,0,0,0.15);
+            cursor: grab;
+            user-select: none; /* Prevents accidentally highlighting the image */
+            transition: box-shadow 0.2s, transform 0.1s;
+            border-radius: 2px;
+            /* Starts hidden, JavaScript will make them pop in */
+            opacity: 0; 
+            transform: scale(0.5);
+        }
+
+        .polaroid img {
+            width: 250px;
+            height: 250px;
+            object-fit: cover;
+            pointer-events: none; /* Helps with dragging smoothly */
+        }
+
+        /* When you click and hold a photo */
+        .polaroid:active {
+            cursor: grabbing;
+            box-shadow: 10px 20px 30px rgba(0,0,0,0.3);
+            transform: scale(1.05) !important; /* Lifts it up slightly */
+        }
+    </style>
+</head>
+<body>
+
+    <div class="desk-menu">
+        <h2>My Messy Desk</h2>
+        <p>Click and drag the photos to explore!</p>
+    </div>
+
+    <div id="desk-surface">
+        <div class="polaroid"><img src="https://picsum.photos/seed/1/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/2/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/3/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/4/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/5/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/6/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/7/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/8/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/9/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/10/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/11/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/12/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/13/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/14/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/15/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/16/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/17/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/18/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/19/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/20/400" alt="Photo"></div>
+        <div class="polaroid"><img src="https://picsum.photos/seed/21/400" alt="Photo"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const polaroids = document.querySelectorAll('.polaroid');
+            let highestZ = 1;
+
+            // 1. Scatter the photos randomly across the screen
+            polaroids.forEach((p, index) => {
+                // Random position (keeping them mostly within the screen)
+                const x = Math.random() * (window.innerWidth - 300);
+                const y = Math.random() * (window.innerHeight - 350);
+                
+                // Random rotation between -25 and +25 degrees
+                const rotation = (Math.random() - 0.5) * 50; 
+
+                // Apply the random positions
+                p.style.left = `${x}px`;
+                p.style.top = `${y}px`;
+                p.dataset.rotation = rotation; // Save the rotation for later
+
+                // Make them pop in one by one!
+                setTimeout(() => {
+                    p.style.transition = 'all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                    p.style.opacity = 1;
+                    p.style.transform = `rotate(${rotation}deg)`;
+                    
+                    // Remove transition after popping in so dragging is instant
+                    setTimeout(() => { p.style.transition = 'none'; }, 500);
+                }, index * 100);
+
+                // 2. The Drag & Drop Logic
+                let isDragging = false;
+                let startX, startY, initialX, initialY;
+
+                p.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    // Bring the clicked photo to the very top!
+                    highestZ++;
+                    p.style.zIndex = highestZ;
+
+                    // Record where the mouse grabbed it
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    initialX = parseFloat(p.style.left) || 0;
+                    initialY = parseFloat(p.style.top) || 0;
+                });
+
+                document.addEventListener('mousemove', (e) => {
+                    if (!isDragging) return;
+                    
+                    // Calculate how far the mouse moved
+                    const dx = e.clientX - startX;
+                    const dy = e.clientY - startY;
+                    
+                    // Move the photo
+                    p.style.left = `${initialX + dx}px`;
+                    p.style.top = `${initialY + dy}px`;
+                    // Keep its messy rotation while dragging
+                    p.style.transform = `rotate(${p.dataset.rotation}deg) scale(1.05)`;
+                });
+
+                document.addEventListener('mouseup', () => {
+                    if (isDragging) {
+                        isDragging = false;
+                        // Drop it back down but keep the rotation
+                        p.style.transform = `rotate(${p.dataset.rotation}deg)`;
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

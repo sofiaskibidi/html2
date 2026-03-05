@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scrapbook Test</title>
+    <style>
+        /* --- THE DESK BACKGROUND --- */
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #8b7355; /* Warm wood color */
+            background-image: repeating-linear-gradient(45deg, #7a6347 25%, transparent 25%, transparent 75%, #7a6347 75%, #7a6347), repeating-linear-gradient(45deg, #7a6347 25%, #8b7355 25%, #8b7355 75%, #7a6347 75%, #7a6347);
+            background-position: 0 0, 10px 10px;
+            background-size: 20px 20px;
+            font-family: 'Courier New', Courier, monospace; /* Typewriter font for that journal feel */
+        }
+
+        /* --- THE SCRAPBOOK --- */
+        .journal {
+            display: flex;
+            width: 900px;
+            height: 600px;
+            background: #e3dccf; /* Aged paper base */
+            border-radius: 10px;
+            box-shadow: 20px 20px 50px rgba(0,0,0,0.5), inset 0 0 50px rgba(139, 115, 85, 0.2);
+            position: relative;
+        }
+
+        /* The spine of the book */
+        .journal::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 50%;
+            width: 40px;
+            margin-left: -20px;
+            background: linear-gradient(to right, rgba(0,0,0,0.1), rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.1));
+            z-index: 10;
+        }
+
+        .page {
+            flex: 1;
+            padding: 40px;
+            position: relative;
+            background: #f4efdf; /* Lighter page color */
+            border-radius: 10px 0 0 10px;
+            box-shadow: inset -15px 0 20px rgba(0,0,0,0.05);
+            overflow: hidden;
+        }
+        
+        .page.right {
+            border-radius: 0 10px 10px 0;
+            box-shadow: inset 15px 0 20px rgba(0,0,0,0.05);
+        }
+
+        /* --- THE TABS (Navigation) --- */
+        .tabs {
+            position: absolute;
+            right: -40px;
+            top: 50px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 20;
+        }
+
+        .tab {
+            background: #d1496b;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 0 10px 10px 0;
+            cursor: pointer;
+            font-weight: bold;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+            transition: transform 0.2s, background 0.2s;
+            user-select: none;
+        }
+
+        .tab:hover {
+            transform: translateX(10px);
+            background: #e5738b;
+        }
+
+        .tab.active {
+            background: #a8e6b1;
+            color: #2b4531;
+            transform: translateX(15px);
+        }
+
+        /* --- PAGE CONTENT & ANIMATIONS --- */
+        .page-content {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            right: 40px;
+            bottom: 40px;
+            opacity: 0;
+            transform: translateX(50px);
+            transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+            pointer-events: none; /* Can't click hidden pages */
+        }
+
+        .page-content.active {
+            opacity: 1;
+            transform: translateX(0);
+            pointer-events: auto;
+        }
+
+        /* --- SCRAPBOOK ELEMENTS (Polaroids, Tape, etc.) --- */
+        h1, h2 { color: #5c3a41; font-family: 'Helvetica Neue', Arial, sans-serif; }
+        p { color: #4a4a4a; font-size: 1.1em; line-height: 1.6; }
+
+        .polaroid {
+            background: white;
+            padding: 10px 10px 40px 10px;
+            box-shadow: 2px 4px 15px rgba(0,0,0,0.2);
+            display: inline-block;
+            position: relative;
+        }
+
+        .polaroid img { width: 100%; max-width: 250px; display: block; }
+        
+        .polaroid-caption {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            font-family: 'Brush Script MT', cursive; /* Handwritten look */
+            font-size: 1.2em;
+            color: #333;
+        }
+
+        /* Fake masking tape */
+        .tape {
+            background-color: rgba(255, 255, 230, 0.6);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            position: absolute;
+            width: 80px;
+            height: 25px;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%) rotate(-3deg);
+            z-index: 5;
+        }
+
+        /* Rotations for that messy scrapbook feel */
+        .tilt-left { transform: rotate(-4deg); }
+        .tilt-right { transform: rotate(5deg); margin-top: 20px;}
+
+    </style>
+</head>
+<body>
+
+    <div class="journal">
+        
+        <div class="page">
+            <h1>My Portfolio</h1>
+            <p>Welcome to my visual diary. These pages hold a collection of my favorite moments, designs, and digital experiments.</p>
+            
+            <div class="polaroid tilt-left" style="margin-top: 30px; margin-left: 20px;">
+                <div class="tape"></div>
+                <img src="https://picsum.photos/seed/cover/300/300" alt="Cover Photo">
+                <div class="polaroid-caption">Spring, 2024</div>
+            </div>
+        </div>
+
+        <div class="page right">
+            
+            <div class="tabs">
+                <div class="tab active" onclick="turnPage('home', this)">Home</div>
+                <div class="tab" onclick="turnPage('photo', this)">Photos</div>
+                <div class="tab" onclick="turnPage('design', this)">Design</div>
+            </div>
+
+            <div id="home" class="page-content active">
+                <h2>About Me</h2>
+                <p>I believe that the best art feels tactile. I love capturing light, color, and raw emotion in my work.</p>
+                <p>Click the tabs on the right side of the journal to flip through my different projects!</p>
+                
+                <div class="polaroid tilt-right" style="margin-left: 50px;">
+                    <div class="tape" style="transform: translateX(-50%) rotate(4deg);"></div>
+                    <img src="https://picsum.photos/seed/about/200/150" alt="Studio">
+                    <div class="polaroid-caption">My workspace</div>
+                </div>
+            </div>
+
+            <div id="photo" class="page-content">
+                <h2>Photography</h2>
+                <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                    <div class="polaroid tilt-left" style="width: 150px;">
+                        <img src="https://picsum.photos/seed/p1/150/150" alt="Photo">
+                    </div>
+                    <div class="polaroid tilt-right" style="width: 150px; margin-top: 40px;">
+                        <img src="https://picsum.photos/seed/p2/150/150" alt="Photo">
+                    </div>
+                </div>
+            </div>
+
+            <div id="design" class="page-content">
+                <h2>Design</h2>
+                <div class="polaroid tilt-left">
+                    <div class="tape"></div>
+                    <img src="https://picsum.photos/seed/d1/250/200" alt="Design">
+                    <div class="polaroid-caption">Latest Poster Concept</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        function turnPage(pageId, tabElement) {
+            // 1. Remove 'active' from all tabs
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            
+            // 2. Add 'active' to the clicked tab
+            tabElement.classList.add('active');
+
+            // 3. Hide all pages
+            document.querySelectorAll('.page-content').forEach(p => {
+                p.classList.remove('active');
+                // Push them slightly right so they slide in from the right next time
+                p.style.transform = 'translateX(50px)'; 
+            });
+
+            // 4. Show the new page after a tiny delay for smoothness
+            setTimeout(() => {
+                const activePage = document.getElementById(pageId);
+                activePage.classList.add('active');
+                activePage.style.transform = 'translateX(0)';
+            }, 50);
+        }
+    </script>
+</body>
+</html>
